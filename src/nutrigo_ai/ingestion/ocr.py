@@ -8,8 +8,6 @@ import importlib.util
 import re
 from typing import Iterable, List, Optional
 
-import httpx
-
 from nutrigo_ai.api.schemas import CartImageAnalysisRequest, MenuText
 
 
@@ -21,7 +19,20 @@ def _pytesseract_available() -> bool:
     return importlib.util.find_spec("pytesseract") is not None
 
 
+def _httpx_client():
+    try:
+        import httpx
+
+        return httpx
+    except Exception:
+        return None
+
+
 def _load_image_from_url(url: str):
+    httpx = _httpx_client()
+    if httpx is None:
+        return None
+
     resp = httpx.get(url, timeout=10)
     resp.raise_for_status()
     return resp.content
