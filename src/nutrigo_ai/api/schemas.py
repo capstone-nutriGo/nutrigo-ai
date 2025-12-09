@@ -81,24 +81,10 @@ class StoreLinkAnalysisRequest(BaseModel):
 
     - store_url: 실제 배달앱 가게 페이지 URL (배민/요기요 등)
     - user_goal: 사용자 영양 목표
-    - menus: (선택) 이미 수집된 메뉴 텍스트가 있다면 전달. 비어있으면 서버가 기본 메뉴를 생성
     """
 
     store_url: str = Field(..., description="배달앱 가게 페이지 URL")
-    store_id: Optional[str] = Field(None, description="가게 식별자 (알고 있다면)")
-    address_text: Optional[str] = Field(
-        None, description="배달앱에 입력할 주소 텍스트 (예: 서울특별시 중구 세종대로)"
-    )
-    lat: Optional[float] = Field(None, description="주소 위도 (선택)")
-    lng: Optional[float] = Field(None, description="주소 경도 (선택)")
-    order_serving_type: Literal["delivery", "pickup"] = Field(
-        "delivery", description="요기요 주문 유형"
-    )
     user_goal: UserGoal
-    menus: List[MenuText] = Field(
-        default_factory=list,
-        description="크롤링/전달된 메뉴 텍스트. 비어있으면 서버가 간단한 더미 메뉴를 생성",
-    )
 
 
 class CartImageAnalysisRequest(BaseModel):
@@ -106,7 +92,8 @@ class CartImageAnalysisRequest(BaseModel):
     배달앱 장바구니/주문 확인 캡처 이미지를 기반으로 OCR + 영양 분석을 수행하기 위한 요청 바디.
 
     - image_url 또는 image_base64 둘 중 하나는 반드시 필요
-    - menus: (선택) OCR 결과가 이미 있다면 전달
+    - 메뉴 정보는 요청 바디에 포함하지 않고,
+      서버가 OCR을 통해 메뉴를 추출한 뒤 응답의 analyses[*].menu 로 돌려준다.
     """
 
     image_url: Optional[str] = Field(None, description="장바구니 캡처 이미지 URL")
@@ -115,10 +102,6 @@ class CartImageAnalysisRequest(BaseModel):
     )
     capture_id: Optional[str] = Field(None, description="장바구니 캡처 식별자")
     user_goal: UserGoal
-    menus: List[MenuText] = Field(
-        default_factory=list,
-        description="OCR 결과 메뉴 텍스트. 비어있으면 서버가 간단한 더미 메뉴를 생성",
-    )
 
     @model_validator(mode="after")
     def validate_image_source(self):

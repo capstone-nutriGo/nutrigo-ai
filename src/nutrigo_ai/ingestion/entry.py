@@ -53,33 +53,26 @@ def build_menus_from_store_link(req: StoreLinkAnalysisRequest) -> List[MenuText]
     """
     가게 링크 기반으로 메뉴 목록을 확보한다.
 
-    1) 메뉴 배열이 이미 전달되면 ID를 정규화하여 사용한다.
-    2) 배달앱 크롤러(yogiyo) 실행을 시도한다.
-    3) 모두 실패하면 URL 해시 기반의 더미 메뉴를 반환한다.
+    1) 배달앱 크롤러(yogiyo) 실행을 시도한다.
+    2) 모두 실패하면 URL 해시 기반의 더미 메뉴를 반환한다.
     """
-
-    if req.menus:
-        return _ensure_menu_ids(req.menus, prefix=req.store_id or "store")
 
     crawled = menus_from_store_link(req)
     if crawled:
-        return _ensure_menu_ids(crawled, prefix=req.store_id or "store")
+        return _ensure_menu_ids(crawled, prefix="store")
 
-    return _fallback_menus(req.store_id or req.store_url)
+    return _fallback_menus(req.store_url)
 
 
 def build_menus_from_cart_image(req: CartImageAnalysisRequest) -> List[MenuText]:
     """
     장바구니 캡처 기반으로 메뉴 목록을 확보한다.
 
-    - menus 가 이미 들어왔다면 그것을 정규화한다.
     - OCR 파이프라인을 통해 텍스트를 추출 후 메뉴 후보를 만든다.
     - 실패 시 기본 메뉴를 반환한다.
     """
 
-    if req.menus:
-        return _ensure_menu_ids(req.menus, prefix=req.capture_id or "cart")
-
+    # 항상 OCR을 통해 메뉴를 추출한다.
     ocr_menus = menus_from_cart_image(req)
     if ocr_menus:
         return _ensure_menu_ids(ocr_menus, prefix=req.capture_id or "cart")

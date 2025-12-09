@@ -52,17 +52,17 @@ def menus_from_store_link(req: StoreLinkAnalysisRequest) -> List[MenuText]:
         if not (fetch_store_info and menu_json_to_menu_texts):
             return []
 
-        store_id = req.store_id or _extract_yogiyo_id(req.store_url)
+        store_id = _extract_yogiyo_id(req.store_url)
         if not store_id:
             return []
 
         try:
             result = fetch_store_info(
                 store_id=store_id,
-                address_text=req.address_text or DEFAULT_ADDRESS,
-                lat=req.lat if req.lat is not None else DEFAULT_LAT,
-                lng=req.lng if req.lng is not None else DEFAULT_LNG,
-                order_serving_type=req.order_serving_type,
+                address_text=DEFAULT_ADDRESS,
+                lat=DEFAULT_LAT,
+                lng=DEFAULT_LNG,
+                order_serving_type="delivery",
                 headless=True,
                 pause_on_finish=False,
             )
