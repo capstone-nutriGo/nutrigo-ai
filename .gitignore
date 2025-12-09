@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 .env
 .playwright/
+build/
+src/nutrigo_ai.egg-info/
+menu_*.json
+result.json
+yogiyo_debug.png
+yogiyo_profile/
