@@ -72,11 +72,16 @@ def build_menus_from_cart_image(req: CartImageAnalysisRequest) -> List[MenuText]
     - 실패 시 기본 메뉴를 반환한다.
     """
 
+    import sys
+    print(f"[Entry] build_menus_from_cart_image 시작: capture_id={req.capture_id}, image_url={'있음' if req.image_url else '없음'}", file=sys.stderr)
+    
     # 항상 OCR을 통해 메뉴를 추출한다.
     ocr_menus = menus_from_cart_image(req)
     if ocr_menus:
+        print(f"[Entry] OCR 성공: {len(ocr_menus)}개 메뉴 추출", file=sys.stderr)
         return _ensure_menu_ids(ocr_menus, prefix=req.capture_id or "cart")
 
+    print("[Entry] OCR 실패 또는 빈 결과 → fallback 메뉴 사용", file=sys.stderr)
     base_key = req.capture_id or req.image_url or "cart-image"
 
     # image_base64 가 들어왔다면 해시를 안정적으로 만들기 위해 디코드만 시도한다.

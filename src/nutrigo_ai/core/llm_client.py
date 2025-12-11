@@ -17,7 +17,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-nano")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 def call_openai_json(system_prompt: str, user_payload: Dict[str, Any]) -> Dict[str, Any]:
     # 1) MOCK 모드: 진짜 OpenAI 안 쓰고 가짜 응답 리턴
@@ -71,8 +71,11 @@ def call_openai_json(system_prompt: str, user_payload: Dict[str, Any]) -> Dict[s
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
 
+        # 모델 이름이 유효한지 확인 (gpt-4.1-nano는 유효하지 않으므로 기본값 변경)
+        model = OPENAI_MODEL if OPENAI_MODEL and OPENAI_MODEL != "gpt-4.1-nano" else "gpt-4o-mini"
+        
         completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
+            model=model,
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
@@ -87,5 +90,13 @@ def call_openai_json(system_prompt: str, user_payload: Dict[str, Any]) -> Dict[s
         return json.loads(raw)
 
     except Exception as e:
+        # OpenAI API 에러 상세 정보 포함
+        error_msg = str(e)
+        if hasattr(e, 'response') and e.response:
+            try:
+                error_detail = e.response.json() if hasattr(e.response, 'json') else str(e.response)
+                error_msg = f"{error_msg} - Detail: {error_detail}"
+            except:
+                pass
         # 여기서 발생하는 에러는 FastAPI 쪽에서 500으로 내려감
-        raise HTTPException(status_code=500, detail=f"LLM 호출 중 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM 호출 중 오류: {error_msg}")
