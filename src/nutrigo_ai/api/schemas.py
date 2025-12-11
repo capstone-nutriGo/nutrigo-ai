@@ -19,6 +19,11 @@ class UserGoal(BaseModel):
     carb_max: Optional[int] = Field(None, description="하루 최대 탄수화물 g")
     sodium_max: Optional[int] = Field(None, description="하루 최대 나트륨 mg")
 
+class UserInfo(BaseModel):
+    """영양 분석에 사용하는 최소한의 사용자 정보"""
+    gender: Literal["male", "female", "other"]
+    birthday: Optional[date] = None
+    
 
 class MenuText(BaseModel):
     """크롤링/OCR 결과에서 LLM에 던질 메뉴 정보"""
@@ -60,13 +65,14 @@ class MenuAnalysis(BaseModel):
 
 
 class NutritionAnalysisRequest(BaseModel):
-    """store-link / cart-image 공통 요청 바디"""
-    source_type: Literal["store_link", "cart_image"]
+    """store-link / cart-image / order-image 공통 요청 바디"""
+    source_type: Literal["store_link", "cart_image", "order_image"]
     source_id: Optional[str] = Field(
         None, description="storeId 또는 cartCaptureId 등"
     )
-    user_goal: UserGoal
+    user_info: Optional[UserInfo] = None
     menus: List[MenuText]
+
 
 
 class NutritionAnalysisResponse(BaseModel):
@@ -84,7 +90,7 @@ class StoreLinkAnalysisRequest(BaseModel):
     """
 
     store_url: str = Field(..., description="배달앱 가게 페이지 URL")
-    user_goal: UserGoal
+    user_info: UserInfo
 
 
 class CartImageAnalysisRequest(BaseModel):
@@ -101,7 +107,7 @@ class CartImageAnalysisRequest(BaseModel):
         None, description="캡처 이미지 Base64 (데이터 URI 허용)"
     )
     capture_id: Optional[str] = Field(None, description="장바구니 캡처 식별자")
-    user_goal: UserGoal
+    user_info: UserInfo
 
     @model_validator(mode="after")
     def validate_image_source(self):
@@ -144,3 +150,67 @@ class NutriBotCoachResponse(BaseModel):
         default_factory=list,
         description="오늘 실천하면 좋은 간단한 액션들",
     )
+
+class MealLogCandidate(BaseModel):
+    """
+    주문내역 캡처에서 인식된 한 메뉴에 대한 식사 기록 후보.
+    JPA MealLog 엔티티의 대부분 필드와 1:1 매핑 가능하게 설계.
+    """
+
+    menu: str                         # MealLog.menu
+    category: Optional[str] = None    # MealLog.category
+    kcal: Optional[float] = None      # MealLog.kcal
+    sodium_mg: Optional[float] = None # MealLog.sodiumMg
+    protein_g: Optional[float] = None # MealLog.proteinG
+    carb_g: Optional[float] = None    # MealLog.carbG
+    total_score: Optional[float] = None  # MealLog.totalScore
+
+    # 선택: 기본값은 0~1배 (0~100%)
+    intake_min_ratio: float = 0.0
+    intake_max_ratio: float = 1.0
+    intake_default_ratio: float = 1.0
+
+
+class OrderImageMealLogResponse(BaseModel):
+    """
+    /order-image 결과를 MealLog 저장용으로 쓰기 위한 응답 스키마.
+    - meal_time, meal_date 는 보통 프론트/백엔드가 알고 있으니 여기선 생략하거나 참고만.
+    - created_at, id, dailyIntakeSummary 는 DB에서 채우는 필드라 응답에는 필요 X.
+    """
+
+    capture_id: Optional[str] = None          # 어떤 캡처에서 나온 결과인지
+    items: List[MealLogCandidate]             # MealLog 로 저장할 후보들
+    raw_ocr_text: Optional[str] = None        # (선택) 디버깅용 전체 OCR 텍스트
+
+class OrderImageAnalysisRequest(BaseModel):
+    """
+    주문내역 캡처 기반 식사 기록용 분석 요청.
+
+    - image_url 또는 image_base64 둘 중 하나는 반드시 필요
+    - order_date, meal_time 은 식사 기록용 메타데이터 (LLM 분석에는 안 써도 됨)
+    """
+
+    image_url: Optional[str] = Field(
+        None, description="주문내역 캡처 이미지 URL"
+    )
+    image_base64: Optional[str] = Field(
+        None, description="캡처 이미지 Base64 (데이터 URI 허용)"
+    )
+    capture_id: Optional[str] = Field(
+        None, description="주문 캡처 식별자"
+    )
+
+    order_date: date = Field(
+        ..., description="주문 날짜 (YYYY-MM-DD)"
+    )
+
+    # MealTime 자바 enum 이 BREAKFAST / LUNCH / DINNER / SNACK 라고 가정
+    meal_time: Literal["BREAKFAST", "LUNCH", "DINNER", "SNACK"] = Field(
+        ..., description="식사 시간대"
+    )
+
+    @model_validator(mode="after")
+    def validate_image_source(self):
+        if not self.image_url and not self.image_base64:
+            raise ValueError("image_url 또는 image_base64 중 하나는 필요합니다.")
+        return self
