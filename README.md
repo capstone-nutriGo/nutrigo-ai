@@ -79,6 +79,11 @@ python -m playwright install chromium
 
   * FastAPI 실행 포트 (기본 8000).
 
+* S3 입력 사용 시
+  * `S3_BUCKET` (권장): `image_url`로 키만 전달해도 S3에서 바로 읽어옵니다.
+  * `S3_REGION`, `S3_ENDPOINT` (옵션)
+  * `S3_FORCE_PATH_STYLE` (옵션, 기본 false)
+
 -> 노션 확인
 
 ---
