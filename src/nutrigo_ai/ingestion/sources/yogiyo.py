@@ -441,50 +441,68 @@ def fetch_store_info(
                 print("[경고] 주소 확정 단계 타임아웃", file=sys.stderr)
 
             # 2) 상세 페이지 이동
-            page.goto(store_url, wait_until="domcontentloaded")
-            _auto_dismiss_popups(page)
-
-            page.wait_for_url(f"**/{store_id}/**", timeout=10000)
-            if not wait_any_ui(
-                page,
-                page.locator("ul.nav-tabs"),
-                page.locator(".restaurant-name"),
-                page.get_by_text("메뉴"),
-            ):
-                raise TimeoutError("상세 UI 대기 실패")
-
-            # 3) '메뉴' 탭 클릭(이미 열려있으면 예외 무시)
-            try:
-                page.get_by_text("메뉴").first.click(timeout=3000)
-            except TimeoutError:
-                try:
-                    page.locator("ul.nav-tabs").get_by_text("메뉴").first.click(
-                        timeout=3000
-                    )
-                except TimeoutError:
-                    print(
-                        "[알림] '메뉴' 탭 클릭 실패(이미 메뉴 탭일 수 있음)",
-                        file=sys.stderr,
-                    )
-
-            # 4) 네트워크 캡처 → 폴링 + 스크롤 유도
             menu_pick = None
-            deadline = time.time() + 3.0
-            while time.time() < deadline:
-                menu_pick = pick_menu_json()
-                if menu_pick:
-                    break
-                time.sleep(0.2)
+            page_load_success = False
+            
+            try:
+                page.goto(store_url, wait_until="domcontentloaded", timeout=30000)
+                _auto_dismiss_popups(page)
+                page_load_success = True
+            except TimeoutError:
+                print(f"[경고] 페이지 로딩 타임아웃, API 직접 호출로 전환", file=sys.stderr)
+                # 페이지 로딩 실패 시 바로 fallback으로
+                page_load_success = False
+            
+            if page_load_success:
+                # URL 대기 시간 증가 및 더 유연한 처리
+                try:
+                    page.wait_for_url(f"**/{store_id}/**", timeout=20000)
+                except TimeoutError:
+                    print(f"[경고] URL 패턴 대기 타임아웃 (store_id={store_id}), 계속 진행", file=sys.stderr)
+                    # URL이 정확히 매칭되지 않아도 계속 진행
+                
+                # UI 요소 대기 시간 증가
+                if not wait_any_ui(
+                    page,
+                    page.locator("ul.nav-tabs"),
+                    page.locator(".restaurant-name"),
+                    page.get_by_text("메뉴"),
+                    timeout=15000,  # 기본값 8000에서 증가
+                ):
+                    print("[경고] 상세 UI 대기 실패, 계속 진행", file=sys.stderr)
+                    # UI가 완전히 로드되지 않아도 계속 진행 시도
 
-            if not menu_pick:
-                for _ in range(10):
-                    page.mouse.wheel(0, 1600)
-                    time.sleep(0.6)
+                # 3) '메뉴' 탭 클릭(이미 열려있으면 예외 무시)
+                try:
+                    page.get_by_text("메뉴").first.click(timeout=3000)
+                except TimeoutError:
+                    try:
+                        page.locator("ul.nav-tabs").get_by_text("메뉴").first.click(
+                            timeout=3000
+                        )
+                    except TimeoutError:
+                        print(
+                            "[알림] '메뉴' 탭 클릭 실패(이미 메뉴 탭일 수 있음)",
+                            file=sys.stderr,
+                        )
+
+                # 4) 네트워크 캡처 → 폴링 + 스크롤 유도
+                deadline = time.time() + 3.0
+                while time.time() < deadline:
                     menu_pick = pick_menu_json()
                     if menu_pick:
                         break
+                    time.sleep(0.2)
 
-            # 5) 실패 시 직접 요청(fallback)
+                if not menu_pick:
+                    for _ in range(10):
+                        page.mouse.wheel(0, 1600)
+                        time.sleep(0.6)
+                        menu_pick = pick_menu_json()
+                        if menu_pick:
+                            break
+
+            # 5) 실패 시 직접 요청(fallback) - 페이지 로딩 실패 시에도 바로 실행
             if not menu_pick:
                 agg_url = (
                     f"https://frontyo.yogiyo.co.kr/v1/aggregation/shops/{store_id}/menus"
