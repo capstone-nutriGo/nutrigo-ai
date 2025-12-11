@@ -19,7 +19,7 @@ router = APIRouter(
 
 
 @router.post("/store-link", response_model=NutritionAnalysisResponse)
-async def analyze_from_store_link(req: StoreLinkAnalysisRequest):
+def analyze_from_store_link(req: StoreLinkAnalysisRequest):
     """배달앱 가게 페이지 링크 기반 분석"""
 
     menus = build_menus_from_store_link(req)
@@ -33,7 +33,7 @@ async def analyze_from_store_link(req: StoreLinkAnalysisRequest):
 
 
 @router.post("/cart-image", response_model=NutritionAnalysisResponse)
-async def analyze_from_cart_image(req: CartImageAnalysisRequest):
+def analyze_from_cart_image(req: CartImageAnalysisRequest):
     """장바구니 캡처(OCR) 기반 분석"""
 
     menus = build_menus_from_cart_image(req)
@@ -46,7 +46,7 @@ async def analyze_from_cart_image(req: CartImageAnalysisRequest):
     return analyze_menus_with_llm(analysis_req)
 
 @router.post("/order-image", response_model=NutritionAnalysisResponse)
-async def analyze_from_order_image(req: CartImageAnalysisRequest):
+def analyze_from_order_image(req: CartImageAnalysisRequest):
     """주문 내역 캡처(OCR) 기반 *주문 후 기록* 분석"""
 
     menus = build_menus_from_cart_image(req)  # OCR + 메뉴 파싱 재사용

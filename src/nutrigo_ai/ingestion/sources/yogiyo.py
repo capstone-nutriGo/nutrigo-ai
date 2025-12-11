@@ -15,11 +15,13 @@ from nutrigo_ai.ingestion.common.browser import (
 
 from nutrigo_ai.api.schemas import MenuText
 
+
 # ======= 메뉴 후보 URL 키워드(느슨하게) =======
 MENU_URL_RE = re.compile(
     r"(aggregation/shops/.*/menus|menu|menus|menugroup|category|categories|item|items|product|products|goods|catalog|dish)",
     re.I,
 )
+
 
 def menu_json_to_menu_texts(menu_json: dict) -> list[MenuText]:
     """
@@ -86,6 +88,7 @@ def menu_json_to_menu_texts(menu_json: dict) -> list[MenuText]:
             )
 
     return menus
+
 
 # ======= 정규화 유틸 =======
 def normalize_frontyo_aggregation(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -258,6 +261,32 @@ def normalize_menu(payload: Any) -> Dict[str, Any]:
     return {"items": norm_items, "schema": "generic_items_v1"}
 
 
+# ======= 팝업 자동 닫기 유틸 =======
+def _auto_dismiss_popups(page):
+    """
+    요기요가 띄우는 앱 설치/동의/닫기 팝업들을 최대한 자동으로 클릭해서 닫는다.
+    실패해도 그냥 넘어가도록 예외는 전부 무시.
+    """
+    selectors = [
+        "text=모바일웹으로 볼게요",
+        "text=웹으로 계속",
+        "text=브라우저에서 계속",
+        "text=괜찮아요",
+        "text=나중에",
+        "text=닫기",
+        "text=동의",
+        "button:has-text('닫기')",
+        "button:has-text('동의')",
+        "button:has-text('확인')",
+    ]
+
+    for sel in selectors:
+        try:
+            page.locator(sel).first.click(timeout=1000)
+        except Exception:
+            pass
+
+
 # ======= 메인 작업 함수 =======
 def fetch_store_info(
     store_id: str,
@@ -271,20 +300,6 @@ def fetch_store_info(
     slow_mo: int = 100,
     pause_on_finish: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """
-    요기요 가게 ID + 주소를 받아서 메뉴 JSON을 크롤링 후
-    정규화 결과까지 묶어서 반환.
-
-    - result 구조:
-      {
-        "store_id": ...,
-        "name": ...,
-        "address": ...,
-        "menu_source_url": ...,
-        "menu_count": ...,
-        "menu_json": {...}   # normalize_menu 결과
-      }
-    """
     store_url = f"https://www.yogiyo.co.kr/mobile/#/{store_id}/"
 
     with open_persistent_chromium(
@@ -360,6 +375,8 @@ def fetch_store_info(
                 "https://www.yogiyo.co.kr/mobile/#/",
                 wait_until="domcontentloaded",
             )
+            _auto_dismiss_popups(page)
+
             try:
                 addr_box = page.locator(
                     "input[placeholder*='건물명'], "
@@ -409,7 +426,8 @@ def fetch_store_info(
                 )
                 time.sleep(1.0)
 
-                # 간헐 팝업 닫기
+                # 간헐 팝업 닫기 (다시 한 번)
+                _auto_dismiss_popups(page)
                 for b in [
                     page.get_by_role("button", name="확인"),
                     page.get_by_role("button", name="닫기"),
@@ -424,6 +442,8 @@ def fetch_store_info(
 
             # 2) 상세 페이지 이동
             page.goto(store_url, wait_until="domcontentloaded")
+            _auto_dismiss_popups(page)
+
             page.wait_for_url(f"**/{store_id}/**", timeout=10000)
             if not wait_any_ui(
                 page,
@@ -560,14 +580,14 @@ def fetch_store_info(
 
 
 if __name__ == "__main__":
-    # 테스트 실행용 (원래 스크립트와 동일한 파라미터)
+    # 테스트 실행용
     res = fetch_store_info(
         store_id="229998",
         address_text="서울특별시 동작구 흑석로 84",
         lat=37.5080617,
         lng=126.95999855,
         order_serving_type="delivery",
-        pause_on_finish=True,
+        pause_on_finish=False,  # 테스트에서도 자동 종료
     )
     if res:
         print("\n=== RESULT(JSON) ===")
