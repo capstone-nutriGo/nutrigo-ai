@@ -25,7 +25,7 @@ async def analyze_from_store_link(req: StoreLinkAnalysisRequest):
     menus = build_menus_from_store_link(req)
     analysis_req = NutritionAnalysisRequest(
         source_type="store_link",
-        source_id=req.store_id or req.store_url,
+        source_id=req.store_url,
         user_goal=req.user_goal,
         menus=menus,
     )
@@ -40,6 +40,19 @@ async def analyze_from_cart_image(req: CartImageAnalysisRequest):
     analysis_req = NutritionAnalysisRequest(
         source_type="cart_image",
         source_id=req.capture_id or req.image_url,
+        user_goal=req.user_goal,
+        menus=menus,
+    )
+    return analyze_menus_with_llm(analysis_req)
+
+@router.post("/order-image", response_model=NutritionAnalysisResponse)
+async def analyze_from_order_image(req: CartImageAnalysisRequest):
+    """주문 내역 캡처(OCR) 기반 *주문 후 기록* 분석"""
+
+    menus = build_menus_from_cart_image(req)  # OCR + 메뉴 파싱 재사용
+    analysis_req = NutritionAnalysisRequest(
+        source_type="order_image",                  # 여기만 cart_image와 구분
+        source_id=req.capture_id or req.image_url,  # 캡처 식별자
         user_goal=req.user_goal,
         menus=menus,
     )
