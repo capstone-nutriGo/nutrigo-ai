@@ -7,6 +7,7 @@ from nutrigo_ai.api.schemas import (
     StoreLinkAnalysisRequest,
     MealLogCandidate,
     OrderImageMealLogResponse,
+    OrderImageAnalysisRequest, 
 )
 from nutrigo_ai.ingestion.entry import (
     build_menus_from_cart_image,
@@ -14,62 +15,57 @@ from nutrigo_ai.ingestion.entry import (
 )
 from nutrigo_ai.services.llm_service import analyze_menus_with_llm
 
-router = APIRouter(
-    prefix="/internal/api/v1/nutrition",
-    tags=["nutrition"],
-)
+router = APIRouter(prefix="/internal/api/v1/nutrition", tags=["nutrition"])
 
 
 @router.post("/store-link", response_model=NutritionAnalysisResponse)
-def analyze_from_store_link(req: StoreLinkAnalysisRequest):
-    """배달앱 가게 페이지 링크 기반 분석"""
-
+def analyze_from_store_link(req: StoreLinkAnalysisRequest) -> NutritionAnalysisResponse:
     menus = build_menus_from_store_link(req)
+
     analysis_req = NutritionAnalysisRequest(
         source_type="store_link",
         source_id=req.store_url,
-        user_goal=req.user_goal,
+        user_info=req.user_info,
         menus=menus,
     )
     return analyze_menus_with_llm(analysis_req)
 
 
 @router.post("/cart-image", response_model=NutritionAnalysisResponse)
-def analyze_from_cart_image(req: CartImageAnalysisRequest):
-    """장바구니 캡처(OCR) 기반 분석"""
-
+def analyze_from_cart_image(req: CartImageAnalysisRequest) -> NutritionAnalysisResponse:
     menus = build_menus_from_cart_image(req)
+
     analysis_req = NutritionAnalysisRequest(
         source_type="cart_image",
         source_id=req.capture_id or req.image_url,
-        user_goal=req.user_goal,
+        user_info=req.user_info,
         menus=menus,
     )
     return analyze_menus_with_llm(analysis_req)
 
+
 @router.post("/order-image", response_model=OrderImageMealLogResponse)
-def analyze_from_order_image(req: CartImageAnalysisRequest):
+def analyze_from_order_image(req: OrderImageAnalysisRequest) -> OrderImageMealLogResponse:
     """
-    주문 내역 캡처(OCR) 기반 *식사 기록용* 분석.
+    주문내역 캡처 → OCR → 메뉴 인식 → LLM 영양 추정 → MealLog 후보 리스트
 
-    1) 장바구니/주문 내역 캡처에서 메뉴 텍스트를 OCR로 뽑고
-    2) LLM으로 대략적인 영양 성분/점수를 추정한 뒤
-    3) MealLog에 바로 저장할 수 있는 형태로 리턴한다.
+    👉 여기서는 user_info 를 전혀 받지 않는다.
+       order_date / meal_time 은 요청으로만 받고, LLM 쪽에는 넘기지 않는다.
     """
 
-    # 1) OCR 기반으로 메뉴 후보 추출 (CartImage와 동일 파이프라인 재사용)
+    # 1) cart-image 와 동일한 OCR 파이프라인 재사용
     menus = build_menus_from_cart_image(req)
 
-    # 2) LLM 영양 분석 (source_type만 order_image로 지정)
+    # 2) 영양 분석은 user_info 없이 수행
     analysis_req = NutritionAnalysisRequest(
         source_type="order_image",
         source_id=req.capture_id or req.image_url,
-        user_goal=req.user_goal,
+        user_info=None,   # ★ order-image 는 user_info 안 씀
         menus=menus,
     )
-    nutri_res: NutritionAnalysisResponse = analyze_menus_with_llm(analysis_req)
+    nutri_res = analyze_menus_with_llm(analysis_req)
 
-    # 3) MenuAnalysis -> MealLogCandidate 로 매핑
+    # 3) NutritionAnalysisResponse -> OrderImageMealLogResponse 변환
     items: list[MealLogCandidate] = []
     for a in nutri_res.analyses:
         items.append(
@@ -87,6 +83,5 @@ def analyze_from_order_image(req: CartImageAnalysisRequest):
     return OrderImageMealLogResponse(
         capture_id=req.capture_id or req.image_url,
         items=items,
-        # raw_ocr_text는 필요하면 ocr.py에서 텍스트도 같이 리턴하도록 확장
         raw_ocr_text=None,
     )

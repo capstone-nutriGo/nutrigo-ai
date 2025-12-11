@@ -24,7 +24,7 @@ def _to_dict(model: Any) -> Dict[str, Any]:
 def analyze_menus_with_llm(req: NutritionAnalysisRequest) -> NutritionAnalysisResponse:
     system_prompt = """
 너는 한국 배달 음식을 잘 아는 전문 영양 코치이자 데이터 분석가 AI다.
-입력으로 사용자 영양 목표와 여러 메뉴 정보를 받는다.
+입력으로 사용자 기본 정보(user_info: 성별, 생년월일)와 여러 메뉴 정보를 받는다.
 
 해야 할 일:
 1. 각 메뉴에 대해 대략적인 영양 성분을 추정한다.
@@ -32,11 +32,9 @@ def analyze_menus_with_llm(req: NutritionAnalysisRequest) -> NutritionAnalysisRe
    - 탄수화물(g), 단백질(g), 지방(g), 나트륨(mg)
    - confidence (0~1, 추정 신뢰도)
 
-2. 각 메뉴가 사용자 목표에 얼마나 적합한지 0~100 점으로 score를 준다.
-   - diet: 칼로리/지방/나트륨이 낮고 단백질이 적당히 높은 메뉴
-   - bulk: 단백질과 총 칼로리가 높은 메뉴
-   - low_sodium: 나트륨이 낮은 메뉴
-   - maintenance/custom: 상한/하한을 고려한 균형 잡힌 메뉴
+2. 사용자 성별·연령대를 고려해서, 각 메뉴가
+   일반적인 건강 관점에서 얼마나 무난한 선택인지 0~100 점으로 score를 준다.
+   (칼로리 과다/나트륨 과다/단백질 부족 등을 종합적으로 판단)
 
 3. 각 메뉴에 대해 1~2문장 정도의 코멘트(coach_sentence)를 한국어로 작성한다.
 4. 각 메뉴에 대해 특징적인 badge 목록을 만든다.
@@ -70,7 +68,7 @@ def analyze_menus_with_llm(req: NutritionAnalysisRequest) -> NutritionAnalysisRe
 """
 
     payload = {
-        "user_goal": _to_dict(req.user_goal),
+        "user_info": _to_dict(req.user_info) if req.user_info is not None else None,
         "menus": [_to_dict(m) for m in req.menus],
         "source_type": req.source_type,
     }

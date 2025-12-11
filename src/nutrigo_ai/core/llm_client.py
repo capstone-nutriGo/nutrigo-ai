@@ -79,7 +79,7 @@ def call_openai_json(system_prompt: str, user_payload: Dict[str, Any]) -> Dict[s
                 {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
-                    "content": json.dumps(user_payload, ensure_ascii=False),
+                    "content": json.dumps(user_payload, ensure_ascii=False, default=str),
                 },
             ],
         )
