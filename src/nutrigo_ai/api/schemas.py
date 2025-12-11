@@ -60,13 +60,14 @@ class MenuAnalysis(BaseModel):
 
 
 class NutritionAnalysisRequest(BaseModel):
-    """store-link / cart-image 공통 요청 바디"""
-    source_type: Literal["store_link", "cart_image"]
+    """store-link / cart-image / order-image 공통 요청 바디"""
+    source_type: Literal["store_link", "cart_image", "order_image"]
     source_id: Optional[str] = Field(
         None, description="storeId 또는 cartCaptureId 등"
     )
     user_goal: UserGoal
     menus: List[MenuText]
+
 
 
 class NutritionAnalysisResponse(BaseModel):
@@ -144,3 +145,29 @@ class NutriBotCoachResponse(BaseModel):
         default_factory=list,
         description="오늘 실천하면 좋은 간단한 액션들",
     )
+
+class MealLogCandidate(BaseModel):
+    """
+    주문내역 캡처에서 인식된 한 메뉴에 대한 식사 기록 후보.
+    JPA MealLog 엔티티의 대부분 필드와 1:1 매핑 가능하게 설계.
+    """
+
+    menu: str                         # MealLog.menu
+    category: Optional[str] = None    # MealLog.category
+    kcal: Optional[float] = None      # MealLog.kcal
+    sodium_mg: Optional[float] = None # MealLog.sodiumMg
+    protein_g: Optional[float] = None # MealLog.proteinG
+    carb_g: Optional[float] = None    # MealLog.carbG
+    total_score: Optional[float] = None  # MealLog.totalScore
+
+
+class OrderImageMealLogResponse(BaseModel):
+    """
+    /order-image 결과를 MealLog 저장용으로 쓰기 위한 응답 스키마.
+    - meal_time, meal_date 는 보통 프론트/백엔드가 알고 있으니 여기선 생략하거나 참고만.
+    - created_at, id, dailyIntakeSummary 는 DB에서 채우는 필드라 응답에는 필요 X.
+    """
+
+    capture_id: Optional[str] = None          # 어떤 캡처에서 나온 결과인지
+    items: List[MealLogCandidate]             # MealLog 로 저장할 후보들
+    raw_ocr_text: Optional[str] = None        # (선택) 디버깅용 전체 OCR 텍스트
