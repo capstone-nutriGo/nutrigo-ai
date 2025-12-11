@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.playwright/
+build/
+src/nutrigo_ai.egg-info/
+menu_*.json
+result.json
+body.json
+yogiyo_debug.png
+yogiyo_profile/
