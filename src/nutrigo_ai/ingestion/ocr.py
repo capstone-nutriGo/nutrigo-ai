@@ -9,6 +9,7 @@ import re
 from typing import Iterable, List, Optional
 
 from nutrigo_ai.api.schemas import CartImageAnalysisRequest, MenuText
+from nutrigo_ai.core import config
 
 
 def _pillow_available() -> bool:
@@ -28,6 +29,26 @@ def _httpx_client():
         return None
 
 
+def _boto3_client():
+    try:
+        import boto3
+        from botocore.config import Config as BotoConfig
+
+        session = boto3.session.Session(region_name=config.S3_REGION)
+        cfg = BotoConfig(
+            s3={
+                "addressing_style": "path" if config.S3_FORCE_PATH_STYLE else "virtual",
+            }
+        )
+        return session.client(
+            "s3",
+            endpoint_url=config.S3_ENDPOINT,
+            config=cfg,
+        )
+    except Exception:
+        return None
+
+
 def _load_image_from_url(url: str):
     httpx = _httpx_client()
     if httpx is None:
@@ -36,6 +57,41 @@ def _load_image_from_url(url: str):
     resp = httpx.get(url, timeout=10)
     resp.raise_for_status()
     return resp.content
+
+
+def _load_image_from_s3(url: str) -> Optional[bytes]:
+    """
+    지원 형태:
+      - s3://bucket/key
+      - 키만 전달된 경우(default bucket 필요)
+    """
+    client = _boto3_client()
+    if client is None:
+        return None
+
+    bucket = None
+    key = None
+
+    if url.startswith("s3://"):
+        # s3://bucket/key...
+        without_scheme = url[len("s3://") :]
+        parts = without_scheme.split("/", 1)
+        if len(parts) == 2:
+            bucket, key = parts[0], parts[1]
+    else:
+        # http/https 아닌 경우 키로 취급
+        if not url.startswith("http"):
+            bucket = config.S3_BUCKET
+            key = url
+
+    if not bucket or not key:
+        return None
+
+    try:
+        obj = client.get_object(Bucket=bucket, Key=key)
+        return obj["Body"].read()
+    except Exception:
+        return None
 
 
 def _load_image_from_base64(encoded: str) -> bytes:
@@ -50,6 +106,10 @@ def _read_image_bytes(req: CartImageAnalysisRequest) -> Optional[bytes]:
         except Exception:
             return None
     if req.image_url:
+        # 먼저 S3 시도 -> 실패 시 일반 URL GET
+        s3_bytes = _load_image_from_s3(req.image_url)
+        if s3_bytes:
+            return s3_bytes
         try:
             return _load_image_from_url(req.image_url)
         except Exception:
