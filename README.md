@@ -59,6 +59,21 @@ python -m playwright install chromium
      pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
      ```
 
+* Linux (Ubuntu/Debian) 기준
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install tesseract-ocr
+  sudo apt-get install tesseract-ocr-kor
+  ```
+
+* macOS 기준
+
+  ```bash
+  brew install tesseract
+  brew install tesseract-lang
+  ```
+
 ---
 
 ## 환경 변수
@@ -78,11 +93,6 @@ python -m playwright install chromium
 * `PORT`
 
   * FastAPI 실행 포트 (기본 8000).
-
-* S3 입력 사용 시
-  * `S3_BUCKET` (권장): `image_url`로 키만 전달해도 S3에서 바로 읽어옵니다.
-  * `S3_REGION`, `S3_ENDPOINT` (옵션)
-  * `S3_FORCE_PATH_STYLE` (옵션, 기본 false)
 
 -> 노션 확인
 
@@ -234,5 +244,69 @@ uvicorn nutrigo_ai.api.main:app --host 0.0.0.0 --port 8000 --reload
   "recommended_menu_ids": ["string"]
 }
 ```
+
+---
+
+## 디렉터리 구조
+
+```
+nutrigo-ai/
+├── src/
+│   └── nutrigo_ai/
+│       ├── api/              # FastAPI 엔드포인트
+│       │   ├── main.py       # 애플리케이션 진입점
+│       │   ├── routes/       # 라우트 핸들러
+│       │   └── schemas.py    # Pydantic 스키마
+│       ├── core/             # 핵심 설정
+│       │   ├── config.py     # 설정 관리
+│       │   ├── llm_client.py # LLM 클라이언트
+│       │   └── logging.py    # 로깅 설정
+│       ├── ingestion/        # 데이터 수집
+│       │   ├── ocr.py        # OCR 처리
+│       │   ├── store_link.py # 가게 링크 크롤링
+│       │   └── sources/      # 크롤링 소스별 파서
+│       └── services/         # 비즈니스 로직
+│           ├── llm_service.py      # LLM 서비스
+│           └── prediction_service.py # 예측 서비스
+├── requirements.txt
+├── pyproject.toml
+└── Dockerfile
+```
+
+---
+
+## 문제 해결
+
+### Playwright 크롤링 실패
+- Playwright 브라우저가 제대로 설치되었는지 확인: `python -m playwright install chromium`
+- 네트워크 연결 확인
+- 크롤링 대상 사이트의 구조 변경 가능성 확인
+
+### OCR 인식 실패
+- Tesseract OCR이 설치되어 있고, 언어 데이터(kor, eng)가 포함되어 있는지 확인
+- 이미지 품질이 낮은 경우 전처리가 필요할 수 있습니다
+- Windows에서 경로 설정이 올바른지 확인
+
+### LLM API 호출 실패
+- `.env` 파일의 API 키가 올바른지 확인
+- 인터넷 연결 확인
+- `MOCK_LLM=true`로 설정하여 모의 모드로 테스트 가능
+
+### 포트 충돌
+- 다른 애플리케이션이 포트 8000을 사용 중인지 확인
+- `PORT` 환경 변수로 다른 포트 지정 가능
+
+---
+
+## Docker를 사용한 실행
+
+Dockerfile이 포함되어 있습니다. Docker를 사용하여 실행할 수 있습니다:
+
+```bash
+docker build -t nutrigo-ai .
+docker run -p 8000:9000 --env-file .env nutrigo-ai
+```
+
+주의: Dockerfile의 기본 포트는 9000입니다.
 
 ---
